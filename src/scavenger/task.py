@@ -1,6 +1,6 @@
-class ServiceInvokation(object):
+class TaskInvokation(object):
     def __init__(self, name, _input = None, code = None, store = False, scheduler = 'basic'):
-        super(ServiceInvokation, self).__init__()
+        super(TaskInvokation, self).__init__()
         self._name = name
         self._input = _input
         self._code = code
@@ -75,10 +75,10 @@ class ServiceInvokation(object):
     id = property(**id())
 
 
-class AdaptiveProfServiceInvokation(ServiceInvokation):
+class AdaptiveProfTaskInvokation(TaskInvokation):
     def __init__(self, name, _input = None, code = None, store = False, scheduler = 'aprofile',
                  output_size = None, complexity_relation = None):
-        super(AdaptiveProfServiceInvokation, self).__init__(name, _input, code, store, scheduler)
+        super(AdaptiveProfTaskInvokation, self).__init__(name, _input, code, store, scheduler)
         self._output_size = output_size
         self._complexity_relation = complexity_relation
         self._complexity = None
