@@ -1,4 +1,4 @@
-from service import AdaptiveProfServiceInvokation
+from task import AdaptiveProfTaskInvokation
 from scavenger import Scavenger
 from inspect import getsource, getmodule
 from functools import partial
@@ -30,11 +30,11 @@ def scavenge(fn, output_size, complexity_relation = None, store = False):
     task_name = 'auto.%s.%s'%(module_name, source_md5) 
 
     # Build a service invokation object.
-    service_invokation = AdaptiveProfServiceInvokation(name = task_name, 
-                                                       code = source, 
-                                                       store = store,
-                                                       output_size = output_size,
-                                                       complexity_relation = complexity_relation)
+    service_invokation = AdaptiveProfTaskInvokation(name = task_name, 
+                                                    code = source, 
+                                                    store = store,
+                                                    output_size = output_size,
+                                                    complexity_relation = complexity_relation)
 
     return partial(Scavenger.scavenge_partial, service_invokation, fn)
 

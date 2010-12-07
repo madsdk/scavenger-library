@@ -23,22 +23,22 @@ class AdaptiveProfScheduler(Scheduler):
 #        self._log_lock = Lock()
         self._schedule_lock = Lock()
         
-    def _get_datahandles(self, service_input):
+    def _get_datahandles(self, task_input):
         datahandles = []
-        if type(service_input) == dict:
+        if type(task_input) == dict:
             # Keyword arguments.
-            for item in service_input.values():
+            for item in task_input.values():
                 if type(item) == RemoteDataHandle:
                     datahandles.append(item)
-        elif type(service_input) in (tuple, list):
+        elif type(task_input) in (tuple, list):
             # Positional arguments.
-            for item in service_input:
+            for item in task_input:
                 if type(item) == RemoteDataHandle:
                     datahandles.append(item)
         else:
             # Single argument.
-            if type(service_input) == RemoteDataHandle:
-                datahandles.append(service_input)
+            if type(task_input) == RemoteDataHandle:
+                datahandles.append(task_input)
 
         return datahandles
         
@@ -50,15 +50,15 @@ class AdaptiveProfScheduler(Scheduler):
         return self._gprofile
     gprofile = property(_get_gprofile)
 
-    def schedule(self, service, local_cpu_strength, local_network_speed, local_activity, prefer_remote=False):
+    def schedule(self, task, local_cpu_strength, local_network_speed, local_activity, prefer_remote=False):
         with self._schedule_lock:
             # For profiling use we need to find the size/factor that relates input to task complexity.
-            if service.complexity_relation != None:
-                if not type(service.input) in (tuple, list):
-                    raise Exception('This only works on services with list-input for now...') 
-                expression = re.sub(r'#(\d+)', r'service.input[\1]', service.complexity_relation)
+            if task.complexity_relation != None:
+                if not type(task.input) in (tuple, list):
+                    raise Exception('This only works on tasks with list-input for now...') 
+                expression = re.sub(r'#(\d+)', r'task.input[\1]', task.complexity_relation)
                 try:
-                    service.complexity = eval(expression)
+                    task.complexity = eval(expression)
                 except Exception, e:
                     raise Exception('Error evaluating complexity expression.', e)
 
@@ -67,36 +67,36 @@ class AdaptiveProfScheduler(Scheduler):
             peers = self._context.get_peers()
             if len(peers) == 0:
                 local_activity.increment()
-                # Log where the service will be performed.
-#                if service.id != None:
+                # Log where the task will be performed.
+#                if task.id != None:
 #                    with self._log_lock:
-#                        self._log.write("%s -> %s\n"%('localhost', service.id))
+#                        self._log.write("%s -> %s\n"%('localhost', task.id))
                 raise ScheduleError('No usable surrogates found.') 
 
             # Find the input size. 
-            input_size = len(dumps(service.input, -1))
-            # If service code is given its size must be added to the total input size.
-            if service.code != None:
-                input_size += len(service.code)
+            input_size = len(dumps(task.input, -1))
+            # If task code is given its size must be added to the total input size.
+            if task.code != None:
+                input_size += len(task.code)
 
             # Get a list of data handles in the input.
-            datahandles = self._get_datahandles(service.input)
+            datahandles = self._get_datahandles(task.input)
 
             # Find the size of the sevice output.
-            if service.store == True:
+            if task.store == True:
                 # If the output is not fetched we need not consider it here.
                 output_size = 0
             else:
-                if type(service.output_size) in (int, float):
+                if type(task.output_size) in (int, float):
                     # A constant is given - we simply adopt that number.
-                    output_size = service.output_size
+                    output_size = task.output_size
                 else:
-                    # We now assume that service.output_size is a string containing a 
+                    # We now assume that task.output_size is a string containing a 
                     # formula relating the output size to the input size.
-                    # Note: The DC scheduler only works on services with list-input for now...
-                    if not type(service.input) in (tuple, list):
-                        raise Exception('The scheduler only works on services with list-input for now...') 
-                    expression = re.sub(r'#(\d+)', r'service.input[\1]', service.output_size)
+                    # Note: The DC scheduler only works on tasks with list-input for now...
+                    if not type(task.input) in (tuple, list):
+                        raise Exception('The scheduler only works on tasks with list-input for now...') 
+                    expression = re.sub(r'#(\d+)', r'task.input[\1]', task.output_size)
                     try:
                         output_size = eval(expression)
                     except Exception, e:
@@ -106,12 +106,12 @@ class AdaptiveProfScheduler(Scheduler):
             candidates = []
 
             # Get the global complexity.
-            global_complexity = self._gprofile.get_complexity(service.name, input_complexity = service.complexity)
+            global_complexity = self._gprofile.get_complexity(task.name, input_complexity = task.complexity)
 
             # Start by adding the local peer.
             if not prefer_remote:
                 peer_strength = float(local_cpu_strength) / (local_activity.value + 1)
-                task_complexity = self._lprofile.get_complexity(('localhost', service.name), global_complexity, service.complexity)
+                task_complexity = self._lprofile.get_complexity(('localhost', task.name), global_complexity, task.complexity)
                 time_to_perform = task_complexity / peer_strength
 
                 time_to_transfer = 0
@@ -124,9 +124,9 @@ class AdaptiveProfScheduler(Scheduler):
 
             # Then add remote peers.
             for peer in peers:
-                # Find out how long it would take for the peer to perform the service.
+                # Find out how long it would take for the peer to perform the task.
                 peer_strength = float(peer.cpu_strength)/(peer.active_tasks/peer.cpu_cores+1)
-                task_complexity = self._lprofile.get_complexity((peer.name, service.name), global_complexity, service.complexity)
+                task_complexity = self._lprofile.get_complexity((peer.name, task.name), global_complexity, task.complexity)
                 time_to_perform = task_complexity / peer_strength
 
                 # Find out how long it would take to transfer the input to the peer.
@@ -140,10 +140,10 @@ class AdaptiveProfScheduler(Scheduler):
                 total_time = time_to_perform + time_to_transfer
                 candidates.append(Candidate(total_time, peer))
 
-            # Sort the peers by the time it would take for them to perform the service.
+            # Sort the peers by the time it would take for them to perform the task.
             candidates.sort()
 
-            # Perform the service.
+            # Perform the task.
             surrogate = candidates[0].peer
 
             # Check whether this is local execution.
@@ -151,10 +151,10 @@ class AdaptiveProfScheduler(Scheduler):
                 # By raising this exception we force the Scavenger lib to
                 # do local execution.
                 local_activity.increment()
-                # Log where the service will be performed.
-#                if service.id != None:
+                # Log where the task will be performed.
+#                if task.id != None:
 #                    with self._log_lock:
-#                        self._log.write("%s -> %s\n"%('localhost', service.id))
+#                        self._log.write("%s -> %s\n"%('localhost', task.id))
                 raise ScheduleError('Do local execution.')
 
             connection = SCProxy(surrogate.address)
@@ -166,16 +166,16 @@ class AdaptiveProfScheduler(Scheduler):
                 # this task is being performed.
                 self._schedule_lock.release()
                 try:
-                    if not self._scavenger.has_service(surrogate, service.name, connection):
-                        self._scavenger.install_service(surrogate, service.name, service.code, connection)
+                    if not self._scavenger.has_task(surrogate, task.name, connection):
+                        self._scavenger.install_task(surrogate, task.name, task.code, connection)
 
-                    # Log where the service will be performed.
-#                    if service.id != None:
+                    # Log where the task will be performed.
+#                    if task.id != None:
 #                        with self._log_lock:
-#                            self._log.write("%s -> %s\n"%(surrogate.name, service.id))
+#                            self._log.write("%s -> %s\n"%(surrogate.name, task.id))
 
-                    # And perform the service.
-                    result = self._scavenger.perform_scheduled_service(surrogate, service, connection)
+                    # And perform the task.
+                    result = self._scavenger.perform_scheduled_task(surrogate, task, connection)
                 finally:
                     self._schedule_lock.acquire()
 

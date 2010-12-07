@@ -1,5 +1,5 @@
 class TaskInvokation(object):
-    def __init__(self, name, _input = None, code = None, store = False, scheduler = 'basic'):
+    def __init__(self, name, _input = None, code = None, store = False, scheduler = None):
         super(TaskInvokation, self).__init__()
         self._name = name
         self._input = _input

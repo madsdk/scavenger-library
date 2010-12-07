@@ -21,7 +21,7 @@ from scrpc import SCProxy
 from schedule import ScheduleError, AdaptiveProfScheduler
 from config import Config
 from datastore import RemoteDataHandle
-from service import ServiceInvokation
+from task import AdaptiveProfTaskInvokation
 from time import time
 from threading import Lock
 from copy import deepcopy
@@ -108,21 +108,21 @@ class Scavenger(object):
         return self._monitor.get_peers()
     
     @classmethod
-    def perform_service(cls, peer, service_name, service_input, connection=None, 
+    def perform_task(cls, peer, task_name, task_input, connection=None, 
                         timeout=ScavengerDefines.TIMEOUT, store=False):
-        return cls.INSTANCE._perform_service(peer, service_name, service_input, 
+        return cls.INSTANCE._perform_task(peer, task_name, task_input, 
                                              connection, timeout, store)
 
-    def _perform_service(self, peer, service_name, service_input, connection=None, 
+    def _perform_task(self, peer, task_name, task_input, connection=None, 
                          timeout=ScavengerDefines.TIMEOUT, store=False):
         """
-        Try to perform a service at a remote scavenger host.
+        Try to perform a task at a remote scavenger host.
         @type peer: ScavengerPeer
-        @param peer: The peer where the service should be performed.
-        @type service_name: str
-        @param service_name: The name of the service.
-        @type service_input: dict
-        @param service_input: The input for the service.
+        @param peer: The peer where the task should be performed.
+        @type task_name: str
+        @param task_name: The name of the task.
+        @type task_input: dict
+        @param task_input: The input for the task.
         @type connection: SCProxy
         @param connection: An initiated connection to a Scavenger peer.
         @type timeout: float
@@ -142,17 +142,17 @@ class Scavenger(object):
         # Fire the RPC call.
         proxy = connection if connection != None else SCProxy(peer.address)
         try:
-            return proxy.perform_task(service_name, service_input, timeout, store)
+            return proxy.perform_task(task_name, task_input, timeout, store)
         finally:
             if connection == None:
                 proxy.close()
     
 
     @classmethod
-    def perform_scheduled_service(cls, peer, service, connection = None):
-        return cls.INSTANCE._perform_scheduled_service(peer, service, connection)
+    def perform_scheduled_task(cls, peer, task, connection = None):
+        return cls.INSTANCE._perform_scheduled_task(peer, task, connection)
 
-    def _perform_scheduled_service(self, peer, service, connection):
+    def _perform_scheduled_task(self, peer, task, connection):
         print peer.name, #DEBUG
 
         # Check that the peer is still there.
@@ -162,33 +162,33 @@ class Scavenger(object):
         # Fire the RPC call.
         proxy = connection if connection != None else SCProxy(peer.address)
         try:
-            if service.scheduler in ('aprofile'):
-                result, complexity = proxy.perform_task(service.name, service.input, ScavengerDefines.TIMEOUT, service.store, True)
-                if service.scheduler == 'aprofile':
-                    self._schedulers[service.scheduler].gprofile.register(service.name, complexity, service.complexity)
-                    self._schedulers[service.scheduler].lprofile.register((peer.name, service.name), complexity, service.complexity)
+            if task.scheduler in ('aprofile'):
+                result, complexity = proxy.perform_task(task.name, task.input, ScavengerDefines.TIMEOUT, task.store, True)
+                if task.scheduler == 'aprofile':
+                    self._schedulers[task.scheduler].gprofile.register(task.name, complexity, task.complexity)
+                    self._schedulers[task.scheduler].lprofile.register((peer.name, task.name), complexity, task.complexity)
                 return result
             else:
-                return proxy.perform_task(service.name, service.input, ScavengerDefines.TIMEOUT, service.store, False)
+                return proxy.perform_task(task.name, task.input, ScavengerDefines.TIMEOUT, task.store, False)
         finally:
             if connection == None:
                 proxy.close()
 
 
     @classmethod
-    def install_service(cls, peer, service_name, service_code, connection=None):
-        cls.INSTANCE._install_service(peer, service_name, service_code, connection)
+    def install_task(cls, peer, task_name, task_code, connection=None):
+        cls.INSTANCE._install_task(peer, task_name, task_code, connection)
 
-    def _install_service(self, peer, service_name, service_code, connection=None):
+    def _install_task(self, peer, task_name, task_code, connection=None):
         """
-        Installs the given service onto the given peer.
+        Installs the given task onto the given peer.
         @type peer: ScavengerPeer
-        @param peer: The peer where the service is to be installed.
-        @type service_name: str
-        @param service_name: The name of the new service. This must be on 
+        @param peer: The peer where the task is to be installed.
+        @type task_name: str
+        @param task_name: The name of the new task. This must be on 
         the form name1.name2.name3, e.g., 'daimi.imaging.scale'.
-        @type service_code: str
-        @param service_code: The source code of the service.
+        @type task_code: str
+        @param task_code: The source code of the task.
         @type connection: SCProxy
         @param connection: An initiated connection to a Scavenger peer.
         @raise ScavengerException: If the peer cannot be contacted, or if an 
@@ -201,22 +201,22 @@ class Scavenger(object):
         # Fire the RPC call.
         proxy = connection if connection != None else SCProxy(peer.address)
         try:
-            proxy.install_task(service_name, service_code)
+            proxy.install_task(task_name, task_code)
         finally:
             if connection == None:
                 proxy.close()
 
     @classmethod
-    def has_service(cls, peer, service_name, connection=None):
-        return cls.INSTANCE._has_service(peer, service_name, connection)
+    def has_task(cls, peer, task_name, connection=None):
+        return cls.INSTANCE._has_task(peer, task_name, connection)
 
-    def _has_service(self, peer, service_name, connection=None):
+    def _has_task(self, peer, task_name, connection=None):
         """
-        Checks whether the given peer offers the named service.
+        Checks whether the given peer offers the named task.
         @type peer: ScavengerPeer
         @param peer: The peer that is to be checked.
-        @type service_name: str
-        @param service_name: The name of the service.
+        @type task_name: str
+        @param task_name: The name of the task.
         @type connection: SCProxy
         @param connection: An initiated connection to a Scavenger peer.
         @raise ScavengerException: If the peer can not be contacted, or if
@@ -229,120 +229,112 @@ class Scavenger(object):
         # Fire the RPC call.
         proxy = connection if connection != None else SCProxy(peer.address)
         try:
-            return proxy.has_task(service_name)
+            return proxy.has_task(task_name)
         finally:
             if connection == None:
                 proxy.close()
     
-    def _resolve_data_handles(self, service_input):
+    def _resolve_data_handles(self, task_input):
         """Resolves any remote data handles in the input so that 
         local execution may be performed."""
-        if type(service_input) == dict:
-            for key, value in service_input.items():
+        if type(task_input) == dict:
+            for key, value in task_input.items():
                 if type(value) == RemoteDataHandle:
-                    service_input[key] = Scavenger.fetch_data(value)
-        elif type(service_input) in (tuple, list):
-            new_service_input = []
-            for item in service_input:
+                    task_input[key] = Scavenger.fetch_data(value)
+        elif type(task_input) in (tuple, list):
+            new_task_input = []
+            for item in task_input:
                 if type(item) == RemoteDataHandle:
-                    new_service_input.append(Scavenger.fetch_data(item))
+                    new_task_input.append(Scavenger.fetch_data(item))
                 else:
-                    new_service_input.append(item)
-            service_input = new_service_input
+                    new_task_input.append(item)
+            task_input = new_task_input
         else:
-            if type(service_input) == RemoteDataHandle:
-                service_input = Scavenger.fetch_data(service_input)
-        return service_input
+            if type(task_input) == RemoteDataHandle:
+                task_input = Scavenger.fetch_data(task_input)
+        return task_input
 
     @classmethod
-    def scavenge(cls, service_name, service_input, service_code=None, local_code=None):
-        service_invocation = ServiceInvokation(service_name, service_input, service_code) 
-        return cls.INSTANCE._scavenge(service_invocation, local_code)
+    def scavenge(cls, task_name, task_input, task_code=None, local_code=None):
+        task_invocation = AdaptiveProfTaskInvokation(task_name, task_input, task_code, output_size='0') 
+        return cls.INSTANCE._scavenge(task_invocation, local_code)
     
-    def _scavenge(self, service, local_code=None):
+    def _scavenge(self, task, local_code=None):
         """
         This method offers opportunistic use of nearby computing resources.
-        The process works in the following way:
-        1) If surrogates are available we check to see if any of them have the
-           service in question. If so we forward the task of performing the 
-           service to such a peer.
-        2) If no peers were found in step 1 a random surrogate is chosen
-           (if any are available), the service is installed at that surrogate, 
-           and the service is performed. 
-        3) If no surrogates are available at all the function given in the 
-           local_code argument is invoked with the service input. 
-        @type service: ServiceInvokation
-        @param service: The service that must be invoked. This object
-        contains the service name, input, code and possible more information about
-        the service.
+        This is all done using the adaptive profiling scheduler.
+        @type task: AdaptiveProfileTaskInvokation
+        @param task: The task that must be invoked. This object
+        contains the task name, input, code and possible more information about
+        the task.
         @type local_code: function
         @param local_code: A local function that is capable of performing the 
-        service. This may be the same code that is used when performing the service
+        task. This may be the same code that is used when performing the task
         remotely, or it may be a 'lighter' version of the code that yields a lower
         quality result but is better suited for executing on a small device. 
-        @rtype: Depends on the service being performed.
-        @return: The result of performing the service.
+        @rtype: Depends on the task being performed.
+        @return: The result of performing the task.
         @raise ScavengerException: For lots of reasons...
         """
-        # Schedule the service execution.
+        # Schedule the task execution.
         try:
             # Ask the scheduler to schedule the task.
             if local_code == None:
                 # If we do not have local code we need to enable prefer_remote.
-                return self._schedulers[service.scheduler].schedule(service,
-                                                                    self._config.getfloat('cpu', 'strength'), 
-                                                                    self._config.getint('network', 'speed'), 
-                                                                    self._activity, 
-                                                                    True)
+                return self._schedulers[task.scheduler].schedule(task,
+                                                                 self._config.getfloat('cpu', 'strength'), 
+                                                                 self._config.getint('network', 'speed'), 
+                                                                 self._activity, 
+                                                                 True)
             else:
-                return self._schedulers[service.scheduler].schedule(service, 
-                                                                    self._config.getfloat('cpu', 'strength'),
-                                                                    self._config.getint('network', 'speed'),
-                                                                    self._activity)
+                return self._schedulers[task.scheduler].schedule(task, 
+                                                                 self._config.getfloat('cpu', 'strength'),
+                                                                 self._config.getint('network', 'speed'),
+                                                                 self._activity)
         except ScheduleError:
             # Remote execution was not possible. Do local execution if possible.
             if local_code != None:
                 print 'localhost', #DEBUG
 
                 # Resolve any remote data handles.
-                service.input = self._resolve_data_handles(service.input)
+                task.input = self._resolve_data_handles(task.input)
 
-                def perform_local_function(service_input):
+                def perform_local_function(task_input):
                     try:
                         # Perform the local function.
-                        if type(service_input) == dict:
-                            return local_code(**service_input)
-                        elif type(service_input) in (tuple, list):
-                            return local_code(*service_input)
+                        if type(task_input) == dict:
+                            return local_code(**task_input)
+                        elif type(task_input) in (tuple, list):
+                            return local_code(*task_input)
                         else:
-                            return local_code(service_input)
+                            return local_code(task_input)
                     finally:
                         self._activity.decrement()
 
                 
-                if service.scheduler in ('aprofile'):
-                    # We need to profile this service run.
+                if task.scheduler in ('aprofile'):
+                    # We need to profile this task run.
                     start = time()
                     start_activity = self._activity.value
-                    result = perform_local_function(service.input)
+                    result = perform_local_function(task.input)
                     stop_activity = self._activity.value + 1
                     stop = time()
                     activity_level = float(start_activity + stop_activity) / 2
                     complexity = ((stop-start) * self._config.getfloat('cpu', 'strength')) / activity_level
-                    if service.scheduler == 'aprofile':
-                        self._schedulers[service.scheduler].gprofile.register(service.name, complexity, service.complexity)
-                        self._schedulers[service.scheduler].lprofile.register(('localhost', service.name), complexity, service.complexity)
+                    if task.scheduler == 'aprofile':
+                        self._schedulers[task.scheduler].gprofile.register(task.name, complexity, task.complexity)
+                        self._schedulers[task.scheduler].lprofile.register(('localhost', task.name), complexity, task.complexity)
                     return result
                 else:
-                    return perform_local_function(service.input)
+                    return perform_local_function(task.input)
                     
             else:
                 raise ScavengerException('No surrogates available.')
          
     @classmethod
-    def scavenge_partial(cls, service_invokation, local_function, *service_input, **kwargs):
-        invocation = deepcopy(service_invokation)
-        invocation.input = service_input
+    def scavenge_partial(cls, task_invokation, local_function, *task_input, **kwargs):
+        invocation = deepcopy(task_invokation)
+        invocation.input = task_input
         if kwargs.has_key('id'):
             invocation.id = kwargs['id']
         return cls.INSTANCE._scavenge(invocation, local_function)
