@@ -11,6 +11,13 @@ else
 fi
 BUILDDIR=scavenger-$VERSION
 
+# sed hack...
+if [ `uname -s` = "Darwin" ]; then 
+	SED="sed -i \"\""
+else
+	SED="sed -i\"\""
+fi
+
 # Create the $BUILDDIR dir
 if [ -d $BUILDDIR ]; then 
 	rm -rf $BUILDDIR;
@@ -21,7 +28,7 @@ mkdir -p $BUILDDIR/scavenger/schedule
 cp $SRCDIR/scavenger/*.py $BUILDDIR/scavenger
 cp $SRCDIR/scavenger/schedule/*.py $BUILDDIR/scavenger/schedule/
 cp setup.py $BUILDDIR/
-sed -i "" s/VERSION/$VERSION/ $BUILDDIR/setup.py
+$SED s/VERSION/$VERSION/ $BUILDDIR/setup.py
 
 tar cfz $BUILDDIR.tar.gz $BUILDDIR
 
