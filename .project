@@ -4,7 +4,6 @@
 	<comment></comment>
 	<projects>
 		<project>Presence Python Library</project>
-		<project>Python Easy IPC</project>
 		<project>Python Remote Data Store</project>
 		<project>Python Single Connection RPC</project>
 	</projects>
